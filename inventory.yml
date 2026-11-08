@@ -1,0 +1,17 @@
+all:
+  children:
+    fortimanagers:
+      hosts:
+        fmg:
+          ansible_host: 192.168.122.99
+      vars:
+        ansible_connection: httpapi
+        ansible_network_os: fortinet.fortimanager.fortimanager
+        ansible_httpapi_use_ssl: true
+        ansible_httpapi_validate_certs: false
+        ansible_httpapi_port: 443
+        ansible_user: admin
+        # Red donde están los port1 de los FortiGate (nube virbr0 de GNS3)
+        red_gestion: 192.168.122.0/24
+        adom: root
+        fgt_user: admin

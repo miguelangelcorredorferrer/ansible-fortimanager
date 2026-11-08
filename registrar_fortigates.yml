@@ -1,0 +1,79 @@
+---
+# Descubre los FortiGate de la red de gestión y los registra en el FortiManager.
+#
+# Uso:
+#   ansible-playbook registrar_fortigates.yml
+#   ansible-playbook registrar_fortigates.yml -e fgt_ips='["192.168.122.71"]'   # sin escaneo
+#
+- name: Registrar en FortiManager todos los FortiGate visibles
+  hosts: fortimanagers
+  gather_facts: false
+
+  vars_prompt:
+    - name: fmg_password
+      prompt: "Contraseña de admin del FortiManager"
+      private: true
+    - name: fgt_password
+      prompt: "Contraseña de admin de los FortiGate"
+      private: true
+
+  vars:
+    ansible_password: "{{ fmg_password }}"
+
+  tasks:
+    - name: Escanear HTTPS (443) y FGFM (541) en la red de gestión
+      ansible.builtin.command: nmap -n -Pn -p 443,541 --open -oG - {{ red_gestion }}
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+      register: escaneo
+      when: fgt_ips is not defined
+
+    - name: Quedarse con los equipos con FGFM abierto (sin el propio FortiManager)
+      ansible.builtin.set_fact:
+        fgt_ips: >-
+          {{ escaneo.stdout_lines
+             | select('search', '541/open')
+             | map('regex_replace', '^Host: (\S+).*$', '\1')
+             | reject('equalto', ansible_host)
+             | list }}
+        sin_fgfm: >-
+          {{ escaneo.stdout_lines
+             | select('search', '443/open')
+             | reject('search', '541/open')
+             | map('regex_replace', '^Host: (\S+).*$', '\1')
+             | list }}
+      when: fgt_ips is not defined
+
+    - name: Avisar de equipos con HTTPS pero sin FGFM (FortiGate sin fgfm en allowaccess)
+      ansible.builtin.debug:
+        msg: >-
+          {{ sin_fgfm }} no tienen el puerto 541 abierto. Si son FortiGate, en su port1:
+          config system interface / edit port1 / append allowaccess fgfm / end
+      when: sin_fgfm | default([]) | length > 0
+
+    - name: Leer los dispositivos ya registrados en el ADOM
+      fortinet.fortimanager.fmgr_fact:
+        facts:
+          selector: dvmdb_device
+          params:
+            adom: "{{ adom }}"
+            device: ""
+      register: registrados
+
+    - name: Calcular los FortiGate pendientes de registrar
+      ansible.builtin.set_fact:
+        ips_registradas: "{{ registrados.meta.response_data | default([], true) | map(attribute='ip') | list }}"
+
+    - name: Resumen
+      ansible.builtin.debug:
+        msg:
+          - "FortiGate encontrados: {{ fgt_ips }}"
+          - "Ya registrados:        {{ fgt_ips | intersect(ips_registradas) }}"
+          - "Se van a registrar:    {{ fgt_ips | difference(ips_registradas) }}"
+
+    - name: Registrar cada FortiGate nuevo
+      ansible.builtin.include_tasks: tareas/registrar_uno.yml
+      loop: "{{ fgt_ips | difference(ips_registradas) }}"
+      loop_control:
+        loop_var: fgt_ip

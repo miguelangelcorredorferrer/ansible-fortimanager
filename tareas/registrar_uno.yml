@@ -1,0 +1,58 @@
+---
+# Registra un FortiGate (fgt_ip) en el FortiManager.
+- name: "{{ fgt_ip }} | Sondear el equipo desde el FortiManager"
+  fortinet.fortimanager.fmgr_dvm_cmd_discover_device:
+    bypass_validation: true
+    dvm_cmd_discover_device:
+      device:
+        adm_usr: "{{ fgt_user }}"
+        adm_pass: "{{ fgt_password }}"
+        ip: "{{ fgt_ip }}"
+  register: sondeo
+  failed_when: false
+
+- name: "{{ fgt_ip }} | No se pudo sondear (¿credenciales o fgfm sin permitir en port1?)"
+  ansible.builtin.debug:
+    msg: "{{ sondeo.meta.response_message | default(sondeo.msg | default(sondeo)) }}"
+  when: sondeo.meta.response_data.device is not defined
+
+- name: "{{ fgt_ip }} | Registrar el equipo y esperar a que termine"
+  when: sondeo.meta.response_data.device is defined
+  block:
+    - name: "{{ fgt_ip }} | Añadir al ADOM {{ adom }}"
+      fortinet.fortimanager.fmgr_dvm_cmd_add_device:
+        bypass_validation: true
+        dvm_cmd_add_device:
+          adom: "{{ adom }}"
+          flags:
+            - create_task
+            - nonblocking
+          device:
+            adm_usr: "{{ fgt_user }}"
+            adm_pass: "{{ fgt_password }}"
+            ip: "{{ fgt_ip }}"
+            mgmt_mode: fmg
+            name: "{{ sondeo.meta.response_data.device.name }}"
+            sn: "{{ sondeo.meta.response_data.device.sn }}"
+            desc: "Registrado con Ansible"
+      register: alta
+
+    - name: "{{ fgt_ip }} | Esperar a la tarea de alta"
+      fortinet.fortimanager.fmgr_fact:
+        facts:
+          selector: task_task
+          params:
+            task: "{{ alta.meta.response_data.taskid }}"
+      register: tarea
+      until: tarea.meta.response_data.percent == 100
+      retries: 40
+      delay: 5
+      failed_when: >-
+        tarea.meta.response_data.state | default('') == 'error'
+        and 'devsnexist' not in (tarea.meta.response_data.line[0].detail | default(''))
+
+    - name: "{{ fgt_ip }} | Resultado"
+      ansible.builtin.debug:
+        msg: >-
+          {{ sondeo.meta.response_data.device.name }}
+          ({{ sondeo.meta.response_data.device.sn }}) registrado en {{ adom }}
