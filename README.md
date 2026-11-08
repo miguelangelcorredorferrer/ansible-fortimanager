@@ -6,6 +6,9 @@ sin tener que ir equipo por equipo desde el Device Manager.
 Lo he montado sobre un laboratorio en GNS3 (FortiManager 6.2.5 y tres FortiGate 6.2.2: una sede
 central y dos oficinas), pero sirve para cualquier red cambiando el inventario.
 
+La documentación completa del laboratorio (montaje en GNS3, configuración de FortiManager,
+playbook y pruebas) está en [docs/FG-2026-002_FortiManager_Ansible.pdf](docs/FG-2026-002_FortiManager_Ansible.pdf).
+
 ## Qué hace
 
 1. Escanea la red de gestión con `nmap` buscando el puerto 541 (FGFM). Si un equipo tiene el
