@@ -3,7 +3,7 @@
 Playbook para dar de alta en FortiManager todos los FortiGate que haya en la red de gestión,
 sin tener que ir equipo por equipo desde el Device Manager.
 
-Lo he montado sobre un laboratorio en GNS3 (FortiManager 6.2.5 y tres FortiGate 6.2.2: casa
+Lo he montado sobre un laboratorio en GNS3 (FortiManager 6.2.5 y tres FortiGate 6.2.2: una sede
 central y dos oficinas), pero sirve para cualquier red cambiando el inventario.
 
 ## Qué hace
